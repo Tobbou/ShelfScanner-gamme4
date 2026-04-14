@@ -42,9 +42,7 @@ class GemmaEngine(private val context: Context) {
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
                 .setMaxTokens(1024)
-                .setTopK(40)
                 .setTemperature(0.2f)  // low temp for structured JSON output
-                .setRandomSeed(42)
                 .build()
 
             llmInference = LlmInference.createFromOptions(context, options)
