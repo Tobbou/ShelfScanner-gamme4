@@ -1,0 +1,24 @@
+{
+  "name": "@gamma4/shelf-scanner-plugin",
+  "version": "1.0.0",
+  "description": "On-device shelf scanning using Gemma 4 E4B via LiteRT-LM for OutSystems ODC",
+  "main": "dist/plugin.cjs.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
+  "unpkg": "dist/plugin.js",
+  "author": "Gamma4",
+  "license": "MIT",
+  "capacitor": {
+    "android": {
+      "src": "android"
+    }
+  },
+  "files": [
+    "android/",
+    "dist/",
+    "src/"
+  ],
+  "peerDependencies": {
+    "@capacitor/core": "^5.0.0"
+  }
+}
