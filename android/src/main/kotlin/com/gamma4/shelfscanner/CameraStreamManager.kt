@@ -120,7 +120,7 @@ class CameraStreamManager(private val context: Context) {
             val preview = Preview.Builder()
                 .setTargetResolution(TARGET_RESOLUTION)
                 .build()
-                .also { it.surfaceProvider = surfaceProvider }
+            preview.setSurfaceProvider(surfaceProvider)
 
             val imageAnalysis = ImageAnalysis.Builder()
                 .setTargetResolution(TARGET_RESOLUTION)

@@ -133,7 +133,7 @@ class ShelfScannerPlugin : Plugin() {
 
     @PluginMethod
     fun startScanning(call: PluginCall) {
-        val accumulationWindowMs = call.getLong("accumulationWindowMs", 2000L)
+        val accumulationWindowMs: Long = call.getLong("accumulationWindowMs", 2000L) ?: 2000L
 
         if (!gemmaEngine.isInitialized) {
             call.reject("Engine not initialized. Call initializeEngine() first.")
