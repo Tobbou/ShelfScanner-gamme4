@@ -81,14 +81,18 @@ Java_com_gamma4_shelfscanner_LlamaCppBridge_nativeGenerate(
     LOGI("Prompt tokenized: %d tokens, generating up to %d tokens", n_prompt_tokens, maxTokens);
 
     // Clear KV cache
-    llama_kv_cache_clear(state->ctx);
+    llama_kv_self_clear(state->ctx);
 
     // Create batch for prompt evaluation
     llama_batch batch = llama_batch_init(tokens.size(), 0, 1);
-    for (size_t i = 0; i < tokens.size(); i++) {
-        llama_batch_add(batch, tokens[i], i, {0}, false);
+    for (size_t i = 0; i < (size_t)n_prompt_tokens; i++) {
+        batch.token[batch.n_tokens] = tokens[i];
+        batch.pos[batch.n_tokens] = i;
+        batch.n_seq_id[batch.n_tokens] = 1;
+        batch.seq_id[batch.n_tokens][0] = 0;
+        batch.logits[batch.n_tokens] = (i == (size_t)n_prompt_tokens - 1);
+        batch.n_tokens++;
     }
-    batch.logits[batch.n_tokens - 1] = true;
 
     // Evaluate prompt
     if (llama_decode(state->ctx, batch) != 0) {
@@ -124,7 +128,12 @@ Java_com_gamma4_shelfscanner_LlamaCppBridge_nativeGenerate(
 
         // Prepare next batch
         llama_batch next_batch = llama_batch_init(1, 0, 1);
-        llama_batch_add(next_batch, new_token, n_cur, {0}, true);
+        next_batch.token[0] = new_token;
+        next_batch.pos[0] = n_cur;
+        next_batch.n_seq_id[0] = 1;
+        next_batch.seq_id[0][0] = 0;
+        next_batch.logits[0] = true;
+        next_batch.n_tokens = 1;
         n_cur++;
 
         if (llama_decode(state->ctx, next_batch) != 0) {
