@@ -5,16 +5,27 @@ ext {
     androidxEspressoVersion = project.hasProperty('androidxEspressoVersion') ? rootProject.ext.androidxEspressoVersion : '3.5.1'
 }
 
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.2.1'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22'
+    }
+}
+
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
 android {
     namespace "com.gamma4.shelfscanner"
-    compileSdk project.hasProperty('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 34
+    compileSdk 34
 
     defaultConfig {
-        minSdkVersion project.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 26
-        targetSdkVersion project.hasProperty('targetSdkVersion') ? rootProject.ext.targetSdkVersion : 34
+        minSdkVersion 26
+        targetSdkVersion 34
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -40,10 +51,10 @@ repositories {
     mavenCentral()
 }
 
-// Force Kotlin stdlib to match the compiler version used by the host project
 configurations.all {
     resolutionStrategy {
-        force "org.jetbrains.kotlin:kotlin-stdlib:${project.hasProperty('kotlin_version') ? rootProject.ext.kotlin_version : '1.9.22'}"
+        force "org.jetbrains.kotlin:kotlin-stdlib:1.9.22"
+        force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22"
     }
 }
 
@@ -51,7 +62,7 @@ dependencies {
     // Capacitor
     implementation project(':capacitor-android')
 
-    // Google ML Kit — real-time text + barcode recognition (on-device, no Kotlin 2.x dep)
+    // Google ML Kit — real-time text + barcode recognition (on-device)
     implementation "com.google.mlkit:text-recognition:16.0.1"
     implementation "com.google.mlkit:barcode-scanning:17.3.0"
 
@@ -62,7 +73,7 @@ dependencies {
     implementation "androidx.camera:camera-lifecycle:${camerax_version}"
     implementation "androidx.camera:camera-view:${camerax_version}"
 
-    // Kotlin coroutines
+    // Kotlin coroutines (1.7.x compatible with Kotlin 1.9)
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
 
     // JSON parsing
