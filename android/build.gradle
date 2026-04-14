@@ -5,17 +5,6 @@ ext {
     androidxEspressoVersion = project.hasProperty('androidxEspressoVersion') ? rootProject.ext.androidxEspressoVersion : '3.5.1'
 }
 
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:8.2.1'
-        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22'
-    }
-}
-
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
@@ -51,14 +40,18 @@ repositories {
     mavenCentral()
 }
 
+// Force Kotlin stdlib to match the compiler version used by the host project
+configurations.all {
+    resolutionStrategy {
+        force "org.jetbrains.kotlin:kotlin-stdlib:${project.hasProperty('kotlin_version') ? rootProject.ext.kotlin_version : '1.9.22'}"
+    }
+}
+
 dependencies {
     // Capacitor
     implementation project(':capacitor-android')
 
-    // LiteRT-LM — on-device Gemma 4 inference
-    implementation "com.google.ai.edge.litertlm:litertlm-android:+"
-
-    // Google ML Kit — real-time text + barcode recognition (on-device)
+    // Google ML Kit — real-time text + barcode recognition (on-device, no Kotlin 2.x dep)
     implementation "com.google.mlkit:text-recognition:16.0.1"
     implementation "com.google.mlkit:barcode-scanning:17.3.0"
 
