@@ -98,31 +98,22 @@ class ShelfScannerPlugin : Plugin() {
 
         pluginScope.launch {
             try {
+                Log.i(TAG, "Initializing engine with model: $modelPath (exists: ${java.io.File(modelPath).exists()}, size: ${java.io.File(modelPath).length()} bytes)")
                 val loadTimeMs = gemmaEngine.initialize(modelPath, useGpu)
-                call.resolve(JSObject().apply {
-                    put("success", true)
-                    put("loadTimeMs", loadTimeMs)
-                    put("backend", if (useGpu) "gpu" else "cpu")
-                })
+
+                if (gemmaEngine.isInitialized) {
+                    call.resolve(JSObject().apply {
+                        put("success", true)
+                        put("loadTimeMs", loadTimeMs)
+                        put("backend", "cpu")
+                        put("modelPath", modelPath)
+                    })
+                } else {
+                    call.reject("Engine init returned but model not loaded. Path: $modelPath, File exists: ${java.io.File(modelPath).exists()}, Size: ${java.io.File(modelPath).length()}")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Engine init failed: ${e.message}")
-                // Fallback to CPU if GPU fails
-                if (useGpu) {
-                    try {
-                        Log.w(TAG, "GPU init failed, falling back to CPU")
-                        val loadTimeMs = gemmaEngine.initialize(modelPath, useGpu = false)
-                        call.resolve(JSObject().apply {
-                            put("success", true)
-                            put("loadTimeMs", loadTimeMs)
-                            put("backend", "cpu")
-                            put("gpuFallback", true)
-                        })
-                    } catch (e2: Exception) {
-                        call.reject("Engine init failed (GPU and CPU): ${e2.message}", e2)
-                    }
-                } else {
-                    call.reject("Engine init failed: ${e.message}", e)
-                }
+                call.reject("Engine init failed: ${e.message}. Path: $modelPath", e)
             }
         }
     }
