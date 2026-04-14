@@ -14,12 +14,10 @@ import java.util.concurrent.TimeUnit
 class ModelDownloader(private val context: Context) {
 
     companion object {
-        // Gemma 4 E4B in MediaPipe .task format
-        // User must convert and host this file — see model-conversion-guide.md
-        // Default URL points to a placeholder; update with your hosted .task file URL
+        // Gemma 4 E4B in Android MediaPipe .task format (bundled TFLite + tokenizer)
         private const val MODEL_URL =
-            "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task"
-        private const val MODEL_FILENAME = "gemma-4-E4B-it.task"
+            "https://huggingface.co/Tobbou/gemma-4-E4B-shelf-scanner/resolve/main/gemma-4-E4B-it-android.task"
+        private const val MODEL_FILENAME = "gemma-4-E4B-it-android.task"
         private const val MODELS_DIR = "models"
         private const val BUFFER_SIZE = 8 * 1024 // 8 KB chunks
     }
