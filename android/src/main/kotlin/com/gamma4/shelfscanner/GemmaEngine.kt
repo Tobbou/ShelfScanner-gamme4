@@ -3,18 +3,17 @@ package com.gamma4.shelfscanner
 import android.content.Context
 import android.util.Log
 import com.gamma4.shelfscanner.model.ProductInfo
+import com.gamma4.shelfscanner.model.PromptTemplates
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Stub for Gemma 4 E4B inference via LiteRT-LM.
- *
- * LiteRT-LM requires Kotlin 2.x but MABS 12 uses Kotlin 1.9.
- * This stub parses raw OCR text into ProductInfo using simple heuristics
- * until LiteRT-LM becomes compatible.
- *
- * TODO: Replace with real LiteRT-LM inference when MABS supports Kotlin 2.x
+ * On-device Gemma 4 E4B inference via MediaPipe LLM Inference API.
+ * Receives accumulated OCR text + barcodes and returns structured ProductInfo.
+ * Text-only inference (~1-3 sec per call).
  */
 class GemmaEngine(private val context: Context) {
 
@@ -22,55 +21,117 @@ class GemmaEngine(private val context: Context) {
         private const val TAG = "GemmaEngine"
     }
 
+    private var llmInference: LlmInference? = null
     private val gson = Gson()
+
     var isInitialized: Boolean = false
         private set
 
+    /**
+     * Initialize MediaPipe LLM Inference with the downloaded .task model.
+     * This takes ~5-10 seconds — must be called from background thread.
+     *
+     * @return Load time in milliseconds
+     */
     suspend fun initialize(modelPath: String, useGpu: Boolean = true): Long =
         withContext(Dispatchers.IO) {
-            Log.i(TAG, "GemmaEngine stub initialized (LiteRT-LM pending Kotlin 2.x support)")
+            release()
+
+            val startTime = System.currentTimeMillis()
+
+            val options = LlmInference.LlmInferenceOptions.builder()
+                .setModelPath(modelPath)
+                .setMaxTokens(1024)
+                .setTopK(40)
+                .setTemperature(0.2f)  // low temp for structured JSON output
+                .setRandomSeed(42)
+                .build()
+
+            llmInference = LlmInference.createFromOptions(context, options)
             isInitialized = true
-            100L
+
+            val loadTimeMs = System.currentTimeMillis() - startTime
+            Log.i(TAG, "Gemma engine initialized in ${loadTimeMs}ms")
+            loadTimeMs
         }
 
     /**
-     * Stub: structures OCR text into products using simple text parsing.
-     * In production this would use Gemma 4 E4B for intelligent structuring.
+     * Analyze accumulated OCR text + barcodes and return structured product data.
+     * Text-only inference — no images involved.
+     *
+     * @return Pair of (List<ProductInfo>, inferenceTimeMs)
      */
     suspend fun structureProducts(
         rawTexts: List<String>,
         barcodes: List<String>
     ): Pair<List<ProductInfo>, Long> = withContext(Dispatchers.IO) {
+        val inference = llmInference
+            ?: throw IllegalStateException("Engine not initialized")
+
+        val prompt = PromptTemplates.shelfScanPrompt(rawTexts, barcodes)
         val startTime = System.currentTimeMillis()
-        val products = mutableListOf<ProductInfo>()
 
-        for (text in rawTexts) {
-            val trimmed = text.trim()
-            if (trimmed.length < 3) continue
-
-            val priceRegex = Regex("(\\d+[.,]\\d{2})\\s*(kr\\.?|DKK|EUR|€|\\$)?")
-            val priceMatch = priceRegex.find(trimmed)
-            val ean = barcodes.firstOrNull()
-
-            if (priceMatch != null) {
-                val pricePart = priceMatch.value
-                val namePart = trimmed.substring(0, priceMatch.range.first).trim()
-                if (namePart.length >= 2) {
-                    products.add(ProductInfo(productName = namePart, price = pricePart, ean = ean))
-                }
-            } else if (trimmed.length >= 5 && !trimmed.all { it.isDigit() }) {
-                products.add(ProductInfo(productName = trimmed, ean = ean))
-            }
-        }
+        val responseText = inference.generateResponse(prompt)
 
         val inferenceTimeMs = System.currentTimeMillis() - startTime
-        Log.d(TAG, "Stub structured ${products.size} products in ${inferenceTimeMs}ms")
+        Log.d(TAG, "Inference completed in ${inferenceTimeMs}ms, response: ${responseText.length} chars")
+
+        val products = parseProducts(responseText)
         Pair(products, inferenceTimeMs)
     }
 
-    fun resetConversation() {}
+    /**
+     * Parse JSON product array from Gemma's response.
+     */
+    private fun parseProducts(response: String): List<ProductInfo> {
+        return try {
+            val jsonStr = extractJsonArray(response)
+            val type = object : TypeToken<List<ProductInfo>>() {}.type
+            gson.fromJson(jsonStr, type) ?: emptyList()
+        } catch (e: Exception) {
+            Log.w(TAG, "JSON parse failed, attempting fallback: ${e.message}")
+            tryFallbackParse(response)
+        }
+    }
+
+    private fun extractJsonArray(text: String): String {
+        val fencedPattern = Regex("```(?:json)?\\s*\\n?(\\[.*?])\\s*\\n?```", RegexOption.DOT_MATCHES_ALL)
+        fencedPattern.find(text)?.let { return it.groupValues[1] }
+
+        val arrayPattern = Regex("\\[\\s*\\{.*}\\s*]", RegexOption.DOT_MATCHES_ALL)
+        arrayPattern.find(text)?.let { return it.value }
+
+        if (text.contains("[]")) return "[]"
+        return text.trim()
+    }
+
+    private fun tryFallbackParse(response: String): List<ProductInfo> {
+        val products = mutableListOf<ProductInfo>()
+        val objectPattern = Regex("\\{[^{}]*\"product_name\"[^{}]*}", RegexOption.DOT_MATCHES_ALL)
+        objectPattern.findAll(response).forEach { match ->
+            try {
+                val product = gson.fromJson(match.value, ProductInfo::class.java)
+                if (product.productName.isNotBlank()) {
+                    products.add(product)
+                }
+            } catch (_: Exception) { }
+        }
+        return products
+    }
+
+    fun resetConversation() {
+        // MediaPipe LlmInference doesn't have explicit conversation reset
+        // Each generateResponse call is independent
+    }
 
     fun release() {
-        isInitialized = false
+        try {
+            llmInference?.close()
+            llmInference = null
+            isInitialized = false
+            Log.i(TAG, "Engine released")
+        } catch (e: Exception) {
+            Log.w(TAG, "Error releasing engine: ${e.message}")
+        }
     }
 }
