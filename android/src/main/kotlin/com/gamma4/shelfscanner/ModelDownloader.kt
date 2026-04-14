@@ -14,10 +14,10 @@ import java.util.concurrent.TimeUnit
 class ModelDownloader(private val context: Context) {
 
     companion object {
-        // Gemma 4 E4B in Android MediaPipe .task format (bundled TFLite + tokenizer)
+        // Gemma 4 E4B in GGUF format (Q4_K_M quantization, ~2.5 GB)
         private const val MODEL_URL =
-            "https://huggingface.co/Tobbou/gemma-4-E4B-shelf-scanner/resolve/main/gemma-4-E4B-it-android.task"
-        private const val MODEL_FILENAME = "gemma-4-E4B-it-android.task"
+            "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf"
+        private const val MODEL_FILENAME = "gemma-4-E4B-it-Q4_K_M.gguf"
         private const val MODELS_DIR = "models"
         private const val BUFFER_SIZE = 8 * 1024 // 8 KB chunks
     }

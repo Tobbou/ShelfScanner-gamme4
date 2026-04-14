@@ -62,8 +62,8 @@ dependencies {
     // Capacitor
     implementation project(':capacitor-android')
 
-    // MediaPipe LLM Inference — on-device Gemma 4 E4B (Java/C++ based, no Kotlin 2.x needed)
-    implementation "com.google.mediapipe:tasks-genai:0.10.24"
+    // llama.cpp native libraries are in jniLibs/arm64-v8a/ (pre-built)
+    // No additional dependency needed — loaded via System.loadLibrary()
 
     // Google ML Kit — real-time text + barcode recognition (on-device)
     implementation "com.google.mlkit:text-recognition:16.0.1"

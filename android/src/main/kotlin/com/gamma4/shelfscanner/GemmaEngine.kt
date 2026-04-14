@@ -6,14 +6,13 @@ import com.gamma4.shelfscanner.model.ProductInfo
 import com.gamma4.shelfscanner.model.PromptTemplates
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * On-device Gemma 4 E4B inference via MediaPipe LLM Inference API.
+ * On-device Gemma 4 E4B inference via llama.cpp (GGUF format).
+ * Uses native C++ library through JNI — no Kotlin version constraints.
  * Receives accumulated OCR text + barcodes and returns structured ProductInfo.
- * Text-only inference (~1-3 sec per call).
  */
 class GemmaEngine(private val context: Context) {
 
@@ -21,15 +20,13 @@ class GemmaEngine(private val context: Context) {
         private const val TAG = "GemmaEngine"
     }
 
-    private var llmInference: LlmInference? = null
     private val gson = Gson()
 
-    var isInitialized: Boolean = false
-        private set
+    val isInitialized: Boolean get() = LlamaCppBridge.isLoaded
 
     /**
-     * Initialize MediaPipe LLM Inference with the downloaded .task model.
-     * This takes ~5-10 seconds — must be called from background thread.
+     * Initialize llama.cpp with the downloaded GGUF model.
+     * Takes ~5-15 seconds depending on device.
      *
      * @return Load time in milliseconds
      */
@@ -37,24 +34,20 @@ class GemmaEngine(private val context: Context) {
         withContext(Dispatchers.IO) {
             release()
 
-            val startTime = System.currentTimeMillis()
+            val nThreads = Runtime.getRuntime().availableProcessors().coerceIn(2, 8)
+            val loadTimeMs = LlamaCppBridge.initialize(
+                modelPath = modelPath,
+                nThreads = nThreads,
+                nCtx = 2048
+            )
 
-            val options = LlmInference.LlmInferenceOptions.builder()
-                .setModelPath(modelPath)
-                .setMaxTokens(1024)
-                .build()
-
-            llmInference = LlmInference.createFromOptions(context, options)
-            isInitialized = true
-
-            val loadTimeMs = System.currentTimeMillis() - startTime
-            Log.i(TAG, "Gemma engine initialized in ${loadTimeMs}ms")
+            Log.i(TAG, "Engine initialized in ${loadTimeMs}ms (threads=$nThreads, backend=cpu)")
             loadTimeMs
         }
 
     /**
      * Analyze accumulated OCR text + barcodes and return structured product data.
-     * Text-only inference — no images involved.
+     * Text-only inference.
      *
      * @return Pair of (List<ProductInfo>, inferenceTimeMs)
      */
@@ -62,13 +55,14 @@ class GemmaEngine(private val context: Context) {
         rawTexts: List<String>,
         barcodes: List<String>
     ): Pair<List<ProductInfo>, Long> = withContext(Dispatchers.IO) {
-        val inference = llmInference
-            ?: throw IllegalStateException("Engine not initialized")
-
         val prompt = PromptTemplates.shelfScanPrompt(rawTexts, barcodes)
         val startTime = System.currentTimeMillis()
 
-        val responseText = inference.generateResponse(prompt)
+        val responseText = LlamaCppBridge.generate(
+            prompt = prompt,
+            maxTokens = 512,
+            temperature = 0.2f
+        )
 
         val inferenceTimeMs = System.currentTimeMillis() - startTime
         Log.d(TAG, "Inference completed in ${inferenceTimeMs}ms, response: ${responseText.length} chars")
@@ -77,9 +71,6 @@ class GemmaEngine(private val context: Context) {
         Pair(products, inferenceTimeMs)
     }
 
-    /**
-     * Parse JSON product array from Gemma's response.
-     */
     private fun parseProducts(response: String): List<ProductInfo> {
         return try {
             val jsonStr = extractJsonArray(response)
@@ -117,18 +108,10 @@ class GemmaEngine(private val context: Context) {
     }
 
     fun resetConversation() {
-        // MediaPipe LlmInference doesn't have explicit conversation reset
-        // Each generateResponse call is independent
+        // Each generate() call is independent in llama.cpp
     }
 
     fun release() {
-        try {
-            llmInference?.close()
-            llmInference = null
-            isInitialized = false
-            Log.i(TAG, "Engine released")
-        } catch (e: Exception) {
-            Log.w(TAG, "Error releasing engine: ${e.message}")
-        }
+        LlamaCppBridge.release()
     }
 }
