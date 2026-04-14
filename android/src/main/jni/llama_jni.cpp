@@ -80,8 +80,7 @@ Java_com_gamma4_shelfscanner_LlamaCppBridge_nativeGenerate(
 
     LOGI("Prompt tokenized: %d tokens, generating up to %d tokens", n_prompt_tokens, maxTokens);
 
-    // Clear KV cache
-    llama_kv_self_clear(state->ctx);
+    // Note: KV cache is managed automatically by llama.cpp
 
     // Create batch for prompt evaluation
     llama_batch batch = llama_batch_init(tokens.size(), 0, 1);
