@@ -21,7 +21,7 @@ apply plugin: 'kotlin-android'
 
 android {
     namespace "com.gamma4.shelfscanner"
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         minSdkVersion 26
